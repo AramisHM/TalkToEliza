@@ -11,9 +11,9 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/segmentio/ksuid"
-	//_ "github.com/jinzhu/gorm/dialects/sqlite"
-	//_ "github.com/mattn/go-sqlite3"
 )
 
 type Questions struct {
@@ -27,18 +27,16 @@ var counter int
 var httpsServer = false
 var eliza = ElizaFromFiles("data/responses.txt", "data/substitutions.txt")
 
-/*
 func initializeDatabase() {
-	db, err := sql.Open("sqlite3", "eliza.db")
-	checkErr(err)
+	db, _ := gorm.Open("sqlite3", "eliza.db")
 	defer db.Close()
+	db.AutoMigrate(&Questions{})
 
-	stmt, err := db.Prepare("CREATE TABLE IF NOT EXISTS QUESTIONS(id INTEGER PRIMARY KEY, user_id VARCHAR(64) , question VARCHAR(128), answer VARCHAR(128), date DATE;")
-	checkErr(err)
-	_, err1 := stmt.Exec()
-	checkErr(err1)
+	if !db.HasTable(&Questions{}) {
+		db.CreateTable(&Questions{})
+	}
 }
-*/
+
 func handler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.Error(w, "Not found", http.StatusNotFound)
@@ -64,41 +62,31 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 // handler for the post funcs
 func elizaHandler(w http.ResponseWriter, r *http.Request) {
-	/*
-		db, err := gorm.Open("sqlite3", "eliza.db")
-		if err != nil {
-			panic("failed to connect database")
-		}
-		defer db.Close()
-	*/
+
+	db, err := gorm.Open("sqlite3", "eliza.db")
+	if err != nil {
+		panic("failed to connect database")
+	}
+	defer db.Close()
+
 	userIputMessage := r.FormValue("message")
 
 	lizaAnswer := eliza.RespondTo(userIputMessage)
-
-	//db.Create(&Questions{Question: userIputMessage, Answer: lizaAnswer, UserId: "Prototyping"})
 
 	cookie, _ := r.Cookie("cookieId")
 
 	userCookieId := cookie.Value
 	fmt.Println(userCookieId + ": " + userIputMessage)
 	fmt.Println(lizaAnswer)
-	/*
-		// save on db
-		db, err := sql.Open("sqlite3", "eliza.db")
-		checkErr(err)
-		defer db.Close()
-		// insert
-		stmt, err := db.Prepare("INSERT INTO QUESTIONS(id, user_id, question, answer, date) values(?,?,?, CURRENT_TIMESTAMP)")
-		checkErr(err1)
-		res, err2 := stmt.Exec(rand.Intn(1000000000), splitSlice[2], splitSlice[0], splitSlice[1])
-		checkErr(err2)
-	*/
+
+	question := Questions{Question: userIputMessage, Answer: lizaAnswer, UserId: userCookieId}
+	db.Save(&question)
 	fmt.Fprintf(w, lizaAnswer) // write data to response
 }
 
 func main() {
 
-	//initializeDatabase()
+	initializeDatabase()
 	rand.Seed(time.Now().UnixNano())
 
 	myRouter := mux.NewRouter().StrictSlash(true)
@@ -107,7 +95,7 @@ func main() {
 
 	myRouter.HandleFunc("/", handler)
 	myRouter.HandleFunc("/eliza", elizaHandler).Methods("POST")
-	log.Fatal(http.ListenAndServe(":80", myRouter))
+	log.Fatal(http.ListenAndServe(":8080", myRouter))
 }
 
 // redirect http to https
