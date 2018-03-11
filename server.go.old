@@ -1,0 +1,60 @@
+package main
+import (
+	"html/template"
+	"log"
+	"net/http"
+	"path"
+	"strconv"
+)
+var counter int
+
+
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	t := template.Must(template.ParseFiles(path.Join("templates", "index.html")))
+	
+	var result string
+	if counter%2 == 0 {
+		result = "Have a nice day!"
+	} else {
+		result = strconv.Itoa(counter)
+	}
+	p := map[string]interface{}{ "Title": "Aramis H. M.", "Viewed": result}
+	counter++
+	t.ExecuteTemplate(w, "index.html", p)
+}
+
+func main() {
+	counter = 0
+	fs := http.FileServer(http.Dir("static"))
+	http.Handle("/static/", http.StripPrefix("/static/", fs))
+	http.HandleFunc("/", handler)
+
+	// redirect every http request to https
+    	go http.ListenAndServe(":80", http.HandlerFunc(redirect))
+
+	if err := http.ListenAndServeTLS(":443", "/etc/letsencrypt/live/www.aramishm.com/cert.pem", "/etc/letsencrypt/live/www.aramishm.com/privkey.pem", nil); err != nil {
+		log.Fatal("ListenAndServe:", err)
+	}
+}
+
+// redirect http to https
+func redirect(w http.ResponseWriter, req *http.Request) {
+    // remove/add not default ports from req.Host
+    target := "https://" + req.Host + req.URL.Path 
+    if len(req.URL.RawQuery) > 0 {
+        target += "?" + req.URL.RawQuery
+    }
+    log.Printf("redirect to: %s", target)
+    http.Redirect(w, req, target,
+            // see @andreiavrammsd comment: often 307 > 301
+            http.StatusTemporaryRedirect)
+}
