@@ -39,7 +39,20 @@
             return $messages.animate({ scrollTop: $messages.prop('scrollHeight') }, 300);
         };
         $('.send_message').click(function (e) {
-            return sendMessage(getMessageText());
+            // show local user text
+            message_side = 'right'
+            var userMessage = getMessageText()
+            sendMessage(userMessage);
+
+            // show remote user text
+            message_side = 'left'
+            $.post(
+                "/eliza",
+                { message: userMessage },
+                function (data) {
+                    sendMessage(data);
+                }
+            );
         });
         $('.message_input').keyup(function (e) {
             if (e.which === 13) {
@@ -51,7 +64,6 @@
 
                 // show remote user text
                 message_side = 'left'
-               
                 $.post(
                     "/eliza",
                     { message: userMessage },
@@ -59,11 +71,8 @@
                         sendMessage(data);
                     }
                 );
-
-                //sendMessage(getMessageText());
-                //return sendMessage('got it.');
             }
         });
-        sendMessage('Hello, I\'m Liza, let\'s talk.');
+        sendMessage('Hello, I\'m Eliza, let\'s talk.');
     });
 }.call(this));
